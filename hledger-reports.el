@@ -255,8 +255,11 @@ the output to `standard-error' and `standard-output'."
 
 (defun hledger-shell-command-to-string (command-string)
   "Return result of running hledger command COMMAND-STRING."
-  (shell-command-to-string (concat "hledger -f " hledger-jfile " "
+  (with-current-buffer (find-file-noselect hledger-jfile)
+    (shell-command-to-string (concat "hledger -f- " " "
                                    command-string)))
+
+  )
 
 (defun hledger-ask-and-save-buffer ()
   "Ask for saving modified buffer before any reporting commands."
@@ -319,11 +322,12 @@ non-nil, it lands us in the `hledger-mode' ."
 (defun hledger-get-accounts (&optional string)
   "Return list of account names with STRING infix present.
 STRING can be multiple words separated by a space."
-  (let* ((accounts-string (shell-command-to-string
-                           (concat "hledger -f"
+  (let* ((accounts-string
+          (with-current-buffer (find-file-noselect hledger-jfile)
+            (shell-command-to-string (concat "hledger -f"
                                    hledger-jfile
                                    " accounts "
-                                   (or string ""))))
+                                   (or string "")))))
          (accounts-list (split-string accounts-string)))
     accounts-list))
 
@@ -353,16 +357,19 @@ The position of point remains unaltered after this function
 call.  This is for letting the caller transform the output more
 easily."
   (let ((jbuffer (hledger-get-perfin-buffer keep-bufferp))
-        (jcommand (concat "hledger -f "
-                          (shell-quote-argument hledger-jfile)
+        (jcommand (concat "hledger -f- "
+                         ;; (shell-quote-argument hledger-jfile)
                           " "
                           command
                           hledger-extra-args)))
     (with-current-buffer jbuffer
       (let ((here (point)))
-        (call-process-shell-command jcommand nil t nil)
+        (with-current-buffer (find-file-noselect hledger-jfile) (shell-command-on-region
+     (point-min) (point-max) jcommand jbuffer))
+        ;;        (call-process-shell-command jcommand nil t nil)
         ;; Keep the pointer where it was before executing the hledger command
-        (goto-char here))
+        (goto-char here)
+        (message jcommand))
       (if bury-bufferp
           (bury-buffer jbuffer)
         (pop-to-buffer jbuffer)
